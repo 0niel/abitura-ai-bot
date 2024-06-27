@@ -8,6 +8,7 @@ from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.ext import ContextTypes
 
 from config import config
+from database_handler import DatabaseHandler
 from document_processor import DocumentProcessor
 from logger import logger
 
@@ -15,7 +16,9 @@ from logger import logger
 class ChatBot:
     """Class encapsulating the chatbot functionality."""
 
-    def __init__(self):
+    async def initialize(self, db_handler: DatabaseHandler):
+        self.db_handler = db_handler
+        await self.db_handler.initialize()
         self.prompt = self._create_prompt()
         self.llm = self._create_llm()
         self.vectorstore = self._create_vectorstore()
@@ -68,7 +71,7 @@ class ChatBot:
         )
 
         # Invoke the chain
-        response = self.chain.invoke(
+        response = await self.chain.ainvoke(
             text,
             config={"configurable": {"search_kwargs": {"namespace": ""}}},
         )
@@ -77,18 +80,21 @@ class ChatBot:
         logger.info(f"AI response: {response}")
 
         # Send the response
-        await context.bot.send_message(
+        message = await context.bot.send_message(
             chat_id=update.message.chat.id,
             text=response,
             message_thread_id=update.message.message_thread_id,
             parse_mode="Markdown",
         )
 
+        # Store response in database
+        await self.db_handler.store_response(message.message_id, response)
+
         # Send feedback buttons
         keyboard = [
             [
-                InlineKeyboardButton("👍", callback_data="like"),
-                InlineKeyboardButton("👎", callback_data="dislike"),
+                InlineKeyboardButton("👍", callback_data=f"like:{message.message_id}"),
+                InlineKeyboardButton("👎", callback_data=f"dislike:{message.message_id}"),
             ]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
@@ -108,11 +114,25 @@ class ChatBot:
     async def handle_feedback(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         """Handles the feedback from the user."""
         query = update.callback_query
-        feedback = query.data
+        try:
+            feedback, message_id = query.data.split(":")
+            message_id = int(message_id)
+        except ValueError:
+            logger.error(f"Invalid callback data: {query.data}")
+            await query.answer("Некорректные данные фидбэка.")
+            return
 
-        # Log the feedback
-        logger.info(f"User feedback: {feedback}")
+        user_id = query.from_user.id
 
-        await context.bot.send_message(chat_id=config.ADMIN_CHAT_ID, text=f"Фидбэк: {feedback}")
+        await self.db_handler.update_feedback(message_id, user_id, feedback)
+        useful_count, not_useful_count, response = await self.db_handler.get_feedback(message_id)
 
-        await query.answer("Спасибо за фидбек!")
+        feedback_message = f"Этот ответ был полезен?\n\n👍 {useful_count} | 👎 {not_useful_count}"
+
+        await query.edit_message_text(text=feedback_message, reply_markup=query.message.reply_markup)
+
+        logger.info(f"User feedback: {feedback} for message_id {message_id}")
+
+        await context.bot.send_message(chat_id=config.ADMIN_CHAT_ID, text=f"Фидбэк: {feedback}\nОтвет: {response}")
+
+        await query.answer("Спасибо за фидбэк!")
