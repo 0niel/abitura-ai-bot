@@ -11,6 +11,8 @@ class Config(BaseSettings):
     GOOGLE_API_KEY: str = os.getenv("GOOGLE_API_KEY")
     OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY")
     TELEGRAM_BOT_TOKEN: str = os.getenv("TELEGRAM_BOT_TOKEN")
+    ALLOWED_CHAT_IDS: str = os.getenv("ALLOWED_CHAT_IDS", "")
+    ALLOWED_THREADS_IDS: str = os.getenv("ALLOWED_THREADS_IDS", "")
     SYSTEM_TEMPLATE: str = """Ответь на вопрос используя следующий контекст:
 {context}
 

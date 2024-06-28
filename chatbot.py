@@ -4,7 +4,7 @@ from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.runnables import ConfigurableField, RunnablePassthrough
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_openai import OpenAIEmbeddings
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup, ReplyParameters, Update
 from telegram.ext import ContextTypes
 
 from config import config
@@ -24,6 +24,8 @@ class ChatBot:
         self.vectorstore = self._create_vectorstore()
         self.retriever = self._create_retriever()
         self.chain = self._create_chain()
+        self.allowed_chat_ids = [int(chat_id) for chat_id in config.ALLOWED_CHAT_IDS.split(",") if chat_id]
+        self.allowed_thread_ids = [int(thread_id) for thread_id in config.ALLOWED_THREADS_IDS.split(",") if thread_id]
 
     def _create_prompt(self) -> ChatPromptTemplate:
         """Creates and returns a ChatPromptTemplate."""
@@ -59,15 +61,29 @@ class ChatBot:
 
     async def handle_ai_request(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         """Handles the AI request from Telegram."""
+        chat_id = update.message.chat.id
+        thread_id = update.message.message_thread_id
+
+        if (chat_id not in self.allowed_chat_ids and len(self.allowed_thread_ids) > 0) or (
+            thread_id not in self.allowed_thread_ids and len(self.allowed_thread_ids) > 0
+        ):
+            await context.bot.send_message(
+                chat_id=chat_id,
+                text="Этот бот может общаться только в определённых чатах и тредах.",
+                message_thread_id=thread_id,
+                parse_mode="Markdown",
+            )
+            return
+
         text = update.message.text[4:].strip()
         if not text:
             return
 
         # Send typing action
         await context.bot.send_chat_action(
-            chat_id=update.message.chat.id,
+            chat_id=chat_id,
             action="typing",
-            message_thread_id=update.message.message_thread_id,
+            message_thread_id=thread_id,
         )
 
         # Invoke the chain
@@ -79,11 +95,14 @@ class ChatBot:
         logger.info(f"User query: {text}")
         logger.info(f"AI response: {response}")
 
+        reply_to_message_id = update.message.message_id
+
         # Send the response
         message = await context.bot.send_message(
-            chat_id=update.message.chat.id,
+            chat_id=chat_id,
             text=response,
-            message_thread_id=update.message.message_thread_id,
+            message_thread_id=thread_id,
+            reply_parameters=ReplyParameters(message_id=reply_to_message_id),
             parse_mode="Markdown",
         )
 
@@ -99,16 +118,16 @@ class ChatBot:
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
         await context.bot.send_message(
-            chat_id=update.message.chat.id,
+            chat_id=chat_id,
             text="Этот ответ был полезен?",
             reply_markup=reply_markup,
-            message_thread_id=update.message.message_thread_id,
+            message_thread_id=thread_id,
         )
 
         await context.bot.send_chat_action(
-            chat_id=update.message.chat.id,
+            chat_id=chat_id,
             action="cancel",
-            message_thread_id=update.message.message_thread_id,
+            message_thread_id=thread_id,
         )
 
     async def handle_feedback(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
