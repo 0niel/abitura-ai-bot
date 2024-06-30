@@ -96,7 +96,6 @@ class SeleniumRecursiveLoader:
         Returns:
             List[Document]: A list of Document objects with extracted content.
         """
-        WebDriverWait(self._driver, 10).until(lambda d: not self._page_ready_check(d))
         if (
             depth > self._max_depth
             or not url.startswith(self._base_url)
@@ -114,7 +113,7 @@ class SeleniumRecursiveLoader:
         documents = [Document(page_content=content, metadata={"source": url})]
 
         soup = BeautifulSoup(raw_html, "html.parser")
-        links = set(self._normalize_url(a["href"]) for a in soup.find_all("a", href=True))
+        links = {self._normalize_url(a["href"]) for a in soup.find_all("a", href=True)}
         for link in links:
             if link:
                 documents.extend(self._load_url_recursive(link, depth + 1))
@@ -154,7 +153,7 @@ def default_page_ready_check(driver: webdriver.Chrome) -> bool:
     """
     try:
         loading_text = driver.find_element(By.XPATH, "//*[contains(text(), 'Пожалуйста, подождите! Идет загрузка...')]")
-        ddos_guard_text = "Проверка браузера перед переходом" in driver.page_source
+        ddos_guard_text = "ddos" in driver.page_source.lower()
         return loading_text is not None or ddos_guard_text is not None
     except Exception:
         return False
