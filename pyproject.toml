@@ -25,6 +25,7 @@ aiosqlite = "^0.20.0"
 langchain-chroma = "^0.1.2"
 selenium = "^4.22.0"
 webdriver-manager = "^4.0.1"
+langchain-community = "^0.2.6"
 
 
 [tool.poetry.group.dev.dependencies]
