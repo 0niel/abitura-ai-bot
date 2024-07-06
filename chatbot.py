@@ -5,7 +5,7 @@ from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.pydantic_v1 import BaseModel
 from langchain_core.runnables import RunnableParallel, RunnablePassthrough
 from langchain_google_genai import ChatGoogleGenerativeAI
-from langchain_openai import OpenAIEmbeddings
+from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, ReplyParameters, Update
 from telegram.ext import ContextTypes
 
@@ -28,9 +28,11 @@ class PromptCreator:
 class LLMProvider:
     @staticmethod
     def create_llm() -> ChatGoogleGenerativeAI:
-        return ChatGoogleGenerativeAI(
-            model="gemini-pro",
+        return ChatOpenAI(
             temperature=0.2,
+            max_retries=16,
+            timeout=120,
+            model="gpt-4o",
         )
 
 
@@ -42,6 +44,7 @@ class VectorStoreProvider:
             embedding_function=OpenAIEmbeddings(
                 retry_max_seconds=120,
                 show_progress_bar=True,
+                max_retries=10,
             ),
         )
 
@@ -49,7 +52,7 @@ class VectorStoreProvider:
 class RetrieverProvider:
     @staticmethod
     def create_retriever(vectorstore: Chroma, llm: ChatGoogleGenerativeAI) -> MultiQueryRetriever:
-        return MultiQueryRetriever.from_llm(vectorstore.as_retriever(k=3), llm)
+        return MultiQueryRetriever.from_llm(vectorstore.as_retriever(k=5), llm)
 
 
 class ProcessingChain:
@@ -83,6 +86,45 @@ class ChatBot:
         self.vectorstore = VectorStoreProvider.create_vectorstore()
         self.retriever = RetrieverProvider.create_retriever(self.vectorstore, self.llm)
         self.chain = ProcessingChain.create_chain(self.prompt, self.llm, self.retriever)
+
+    async def start(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        chat_id = update.message.chat.id
+        thread_id = update.message.message_thread_id
+
+        if not self._is_allowed_chat(chat_id, thread_id):
+            await self._send_restricted_access_message(context, chat_id, thread_id)
+            return
+
+        user_first_name = update.message.from_user.first_name
+
+        welcome_message_1 = (
+            f"👋 *Привет, {user_first_name}!* \n\n"
+            "Я ваш AI-бот, _помощник абитуриентов_.\n"
+            "Готов помочь вам с любой информацией о поступлении. 🎓"
+        )
+
+        welcome_message_2 = (
+            "Вот несколько примеров вопросов, которые вы можете задать:\n"
+            "• *Какие документы нужны для поступления?* 📄\n"
+            "• *Какие вступительные экзамены нужно сдать?* 📝\n"
+            "• *Какой проходной балл в этом году?* 🎓\n"
+            "• *Как подать заявление на общежитие?* 🏠\n\n"
+            "Чтобы задать вопрос, просто напишите его после команды /ai.\n"
+            "_Например_: `/ai Какие документы нужны для поступления?`"
+        )
+
+        await context.bot.send_message(
+            chat_id=chat_id,
+            text=welcome_message_1,
+            message_thread_id=thread_id,
+            parse_mode="Markdown",
+        )
+        await context.bot.send_message(
+            chat_id=chat_id,
+            text=welcome_message_2,
+            message_thread_id=thread_id,
+            parse_mode="Markdown",
+        )
 
     async def handle_ai_request(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         chat_id = update.message.chat.id
@@ -192,3 +234,32 @@ class ChatBot:
         except ValueError:
             logger.error(f"Invalid callback data: {query.data}")
             return None, None
+
+    async def handle_stats_request(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        chat_id = update.message.chat.id
+        thread_id = update.message.message_thread_id
+
+        if not self._is_allowed_chat(chat_id, thread_id):
+            await self._send_restricted_access_message(context, chat_id, thread_id)
+            return
+
+        overall_stats = await self.db_handler.get_overall_feedback_stats()
+        today_stats = await self.db_handler.get_today_feedback_stats()
+
+        overall_useful, overall_not_useful = overall_stats or (0, 0)
+        today_useful, today_not_useful = today_stats if today_stats else (0, 0)
+
+        response = (
+            f"📊 *Статистика ответов*\n\n"
+            f"Всего полезных: {overall_useful}\n"
+            f"Всего бесполезных: {overall_not_useful}\n\n"
+            f"Полезных за сегодня: {today_useful}\n"
+            f"Бесполезных за сегодня: {today_not_useful}"
+        )
+
+        await context.bot.send_message(
+            chat_id=chat_id,
+            text=response,
+            message_thread_id=thread_id,
+            parse_mode="Markdown",
+        )

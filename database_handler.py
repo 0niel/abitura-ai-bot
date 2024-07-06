@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+from datetime import datetime
 
 import aiosqlite
 
@@ -22,7 +23,7 @@ class DatabaseHandler(ABC):
 
 
 class SQLiteHandler(DatabaseHandler):
-    def __init__(self, db_path="feedback.db"):
+    def __init__(self, db_path="feedback2.db"):
         self.db_path = db_path
 
     async def initialize(self):
@@ -34,7 +35,8 @@ class SQLiteHandler(DatabaseHandler):
                     message_id INTEGER,
                     response TEXT,
                     useful_count INTEGER DEFAULT 0,
-                    not_useful_count INTEGER DEFAULT 0
+                    not_useful_count INTEGER DEFAULT 0,
+                    timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
                 )
                 """
             )
@@ -104,6 +106,21 @@ class SQLiteHandler(DatabaseHandler):
         async with aiosqlite.connect(self.db_path) as db:
             cursor = await db.execute(
                 "SELECT useful_count, not_useful_count, response FROM feedback WHERE message_id = ?", (message_id,)
+            )
+            result = await cursor.fetchone()
+        return result
+
+    async def get_overall_feedback_stats(self):
+        async with aiosqlite.connect(self.db_path) as db:
+            cursor = await db.execute("SELECT SUM(useful_count), SUM(not_useful_count) FROM feedback")
+            result = await cursor.fetchone()
+        return result
+
+    async def get_today_feedback_stats(self):
+        today = datetime.now().strftime("%Y-%m-%d")
+        async with aiosqlite.connect(self.db_path) as db:
+            cursor = await db.execute(
+                "SELECT SUM(useful_count), SUM(not_useful_count) FROM feedback WHERE DATE(timestamp) = ?", (today,)
             )
             result = await cursor.fetchone()
         return result

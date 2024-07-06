@@ -1,4 +1,4 @@
-.PHONY: format build run stop clean
+.PHONY: format build run stop restart clean logs shell prune help
 
 # Formatting commands
 format:
@@ -9,17 +9,29 @@ format:
 
 # Docker commands
 build:
-	docker build -t telegram-bot .
+	docker build -t tg-bot .
 
 run:
-	docker run --env-file .env -p 5000:5000 --name telegram-bot telegram-bot
+	docker run --env-file .env -p 5000:5000 --name tg-bot tg-bot
 
 stop:
-	docker stop telegram-bot
-	docker rm telegram-bot
+	docker stop tg-bot
+	docker rm tg-bot
+
+restart: stop build run
 
 clean:
-	docker rmi telegram-bot
+	docker rmi tg-bot
+
+logs:
+	docker logs -f tg-bot
+
+shell:
+	docker exec -it tg-bot /bin/sh
+
+prune:
+	docker system prune -f
+	docker volume prune -f
 
 # Default goal
 .DEFAULT_GOAL := help
@@ -27,8 +39,12 @@ clean:
 # Help target to list available commands
 help:
 	@echo "Available commands:"
-	@echo "  format - Run code formatting tools"
-	@echo "  build  - Build the Docker image"
-	@echo "  run    - Run the Docker container"
-	@echo "  stop   - Stop and remove the Docker container"
-	@echo "  clean  - Remove the Docker image"
+	@echo "  format  - Run code formatting tools"
+	@echo "  build   - Build the Docker image"
+	@echo "  run     - Run the Docker container"
+	@echo "  stop    - Stop and remove the Docker container"
+	@echo "  restart - Stop, rebuild and run the Docker container"
+	@echo "  clean   - Remove the Docker image"
+	@echo "  logs    - Show logs of the running container"
+	@echo "  shell   - Open a shell inside the running container"
+	@echo "  prune   - Remove all unused Docker objects"

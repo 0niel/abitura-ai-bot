@@ -24,6 +24,8 @@ async def main() -> None:
 
     # Add handlers
     application.add_handler(CommandHandler("ai", chatbot.handle_ai_request))
+    application.add_handler(CommandHandler("stats", chatbot.handle_stats_request))
+    application.add_handler(CommandHandler("start", chatbot.start))
     application.add_handler(CallbackQueryHandler(chatbot.handle_feedback))
 
     # Start the bot

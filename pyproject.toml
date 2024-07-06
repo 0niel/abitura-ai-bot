@@ -19,7 +19,7 @@ langchain-google-vertexai = {git = "https://github.com/langchain-ai/langchain-go
 python-dotenv = "^1.0.1"
 langchain-core = "^0.2.10"
 langchain-openai = "^0.1.10"
-python-telegram-bot = "^21.3"
+python-telegram-bot = {extras = ["rate-limiter"], version = "^21.3"}
 pydantic-settings = "^2.3.4"
 aiosqlite = "^0.20.0"
 langchain-chroma = "^0.1.2"

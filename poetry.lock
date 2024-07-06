@@ -97,6 +97,17 @@ yarl = ">=1.0,<2.0"
 speedups = ["Brotli", "aiodns", "brotlicffi"]
 
 [[package]]
+name = "aiolimiter"
+version = "1.1.0"
+description = "asyncio rate limiter, a leaky bucket implementation"
+optional = false
+python-versions = ">=3.7,<4.0"
+files = [
+    {file = "aiolimiter-1.1.0-py3-none-any.whl", hash = "sha256:0b4997961fc58b8df40279e739f9cf0d3e255e63e9a44f64df567a8c17241e24"},
+    {file = "aiolimiter-1.1.0.tar.gz", hash = "sha256:461cf02f82a29347340d031626c92853645c099cb5ff85577b831a7bd21132b5"},
+]
+
+[[package]]
 name = "aiosignal"
 version = "1.3.1"
 description = "aiosignal: a list of registered asynchronous callbacks"
@@ -3156,6 +3167,7 @@ files = [
 ]
 
 [package.dependencies]
+aiolimiter = {version = ">=1.1.0,<1.2.0", optional = true, markers = "extra == \"rate-limiter\""}
 httpx = ">=0.27,<1.0"
 
 [package.extras]
@@ -4533,4 +4545,4 @@ test = ["big-O", "importlib-resources", "jaraco.functools", "jaraco.itertools", 
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.10"
-content-hash = "28413341690dc7c31773db2ae69b5289eb42f60b4849d190a49042249cae9473"
+content-hash = "14cb34a2f5000232667b7632a1c61e88ab6c86f09dfca6b7ba8e2fce41ec3f25"
